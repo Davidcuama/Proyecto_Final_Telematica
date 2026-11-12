@@ -50,7 +50,7 @@ Se implementa la interconexión de dos AS de clientes (`AS1` y `AS2`) con un AS 
 
 Topología real armada en Packet Tracer 9.0.1 (archivo `Entrega_2_Telematica.pkt`; todos los enlaces en verde):
 
-![Topología en Packet Tracer](capturas/00_topologia.jpg)
+![Topología en Packet Tracer](capturas/00_topologia.png)
 
 ### 2.2 Decisiones de hardware
 
