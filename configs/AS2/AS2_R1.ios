@@ -1,0 +1,51 @@
+! =====================================================================
+! AS2 - ROUTER R1 (Modelo recomendado: Cisco 2911)
+! Rol: Gateway de la red 10.0.0.0/24 + Agente DHCP Relay + RIPv2
+! Nota (Req. 2.a): AS2 implementa RIPv2 mientras AS1 implementa OSPF,
+! cumpliendo la exigencia de usar más de un IGP en la topología.
+! =====================================================================
+enable
+configure terminal
+hostname AS2-R1
+no ip domain-lookup
+
+! 1. Interfaz Loopback para identificación y pruebas internas
+interface Loopback0
+ description Loopback_AS2_R1
+ ip address 192.168.2.201 255.255.255.255
+exit
+
+! 2. Interfaz LAN hacia Switch SW1 de AS2 (VLAN 10 - Red 10.0.0.0/24)
+!    Incluye ip helper-address (DHCP Relay) apuntando al servidor DHCP de AS2
+interface GigabitEthernet0/0
+ description LAN_VLAN10_10.0.0.0/24_con_DHCP_Relay
+ ip address 10.0.0.1 255.255.255.0
+ ip helper-address 192.168.2.100
+ no shutdown
+exit
+
+! 3. Enlace interno hacia AS2-R3
+interface GigabitEthernet0/1
+ description Enlace_Interno_a_AS2-R3_Gi0/1
+ ip address 192.168.2.1 255.255.255.252
+ no shutdown
+exit
+
+! 4. Enlace interno hacia AS2-R2
+interface GigabitEthernet0/2
+ description Enlace_Interno_a_AS2-R2_Gi0/2
+ ip address 192.168.2.5 255.255.255.252
+ no shutdown
+exit
+
+! 5. Enrutamiento Interno (IGP): RIP versión 2 sin sumarización automática
+router rip
+ version 2
+ no auto-summary
+ passive-interface GigabitEthernet0/0
+ network 10.0.0.0
+ network 192.168.2.0
+exit
+
+end
+write memory

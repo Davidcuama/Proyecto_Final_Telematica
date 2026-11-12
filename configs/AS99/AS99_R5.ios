@@ -1,0 +1,48 @@
+! =====================================================================
+! AS99 - ROUTER R5 (Modelo recomendado: Cisco 2911)
+! Rol: Router de Acceso al Servidor DNS (203.0.113.64/26) + OSPF Proceso 99
+! =====================================================================
+enable
+configure terminal
+hostname AS99-R5
+no ip domain-lookup
+
+! 1. Interfaz Loopback para identificación en AS99
+interface Loopback0
+ description Loopback_AS99_R5
+ ip address 203.0.113.205 255.255.255.255
+exit
+
+! 2. Interfaz LAN hacia el Servidor DNS de AS99 (203.0.113.66/26)
+interface GigabitEthernet0/0
+ description Conexion_a_Servidor_DNS_AS99_(203.0.113.66)
+ ip address 203.0.113.65 255.255.255.192
+ no shutdown
+exit
+
+! 3. Enlace interno hacia AS99-R6 (Gi0/0)
+interface GigabitEthernet0/1
+ description Enlace_Interno_a_AS99-R6_Gi0/0
+ ip address 203.0.113.2 255.255.255.252
+ no shutdown
+exit
+
+! 4. Enlace interno hacia AS99-R7 (Gi0/2)
+interface GigabitEthernet0/2
+ description Enlace_Interno_a_AS99-R7_Gi0/2
+ ip address 203.0.113.9 255.255.255.252
+ no shutdown
+exit
+
+! 5. Enrutamiento Interno del Proveedor (IGP): OSPF Proceso 99 (Área 0)
+router ospf 99
+ router-id 99.99.99.5
+ passive-interface GigabitEthernet0/0
+ network 203.0.113.0 0.0.0.3 area 0
+ network 203.0.113.8 0.0.0.3 area 0
+ network 203.0.113.64 0.0.0.63 area 0
+ network 203.0.113.205 0.0.0.0 area 0
+exit
+
+end
+write memory

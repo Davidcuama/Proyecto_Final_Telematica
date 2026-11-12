@@ -1,0 +1,89 @@
+! =====================================================================
+! AS2 - ROUTER R2 (Cisco 2911 + módulo HWIC-2T en el slot 0)
+! Rol: Router de borde de AS2 (eBGP con AS99 + NAT/PAT + RIPv2)
+! En la Figura 1, R2 de AS2 es el router conectado directamente a R6.
+!
+! Hardware: apagar el router, insertar HWIC-2T en el slot 0 y encender.
+! El enlace con AS99-R6 es serial (WAN); el extremo DCE está en AS99-R6.
+!
+! Solución a la superposición de direcciones:
+!   - PAT (NAT overload) hacia el bloque público exclusivo de AS2:
+!     198.51.100.8/29 (anclado en Loopback1)
+!   - eBGP (AS 2 -> AS 99) anuncia SOLO 198.51.100.8/29
+!   - Origina ruta por defecto en RIPv2 hacia los routers internos
+! =====================================================================
+enable
+configure terminal
+hostname AS2-R2
+no ip domain-lookup
+
+! 1. Loopback de identificación
+interface Loopback0
+ description Loopback_AS2_R2
+ ip address 192.168.2.202 255.255.255.255
+exit
+
+! 2. Loopback1: bloque público único de AS2
+interface Loopback1
+ description Bloque_Publico_AS2_198.51.100.8/29_para_NAT_y_BGP
+ ip address 198.51.100.9 255.255.255.248
+exit
+
+! 3. Enlace eBGP serial hacia AS99-R6 Se0/0/1 (R6 es DCE)
+interface Serial0/0/0
+ description Enlace_eBGP_hacia_AS99-R6_Se0/0/1
+ ip address 200.2.99.1 255.255.255.252
+ ip nat outside
+ no shutdown
+exit
+
+! 4. Gi0/0 queda libre
+interface GigabitEthernet0/0
+ description Libre
+ shutdown
+exit
+
+! 5. Enlace interno hacia AS2-R4
+interface GigabitEthernet0/1
+ description Enlace_Interno_a_AS2-R4_Gi0/1
+ ip address 192.168.2.13 255.255.255.252
+ ip nat inside
+ no shutdown
+exit
+
+! 6. Enlace interno hacia AS2-R1
+interface GigabitEthernet0/2
+ description Enlace_Interno_a_AS2-R1_Gi0/2
+ ip address 192.168.2.6 255.255.255.252
+ ip nat inside
+ no shutdown
+exit
+
+! 7. NAT/PAT: todo lo interno de AS2 sale como 198.51.100.10 - .14
+access-list 1 permit 10.0.0.0 0.0.0.255
+access-list 1 permit 172.16.0.0 0.0.0.255
+access-list 1 permit 192.168.2.0 0.0.0.255
+ip nat pool POOL_PUBLICO_AS2 198.51.100.10 198.51.100.14 netmask 255.255.255.248
+ip nat inside source list 1 pool POOL_PUBLICO_AS2 overload
+
+! 8. Ruta por defecto hacia AS99 (se propaga al interior por RIPv2)
+ip route 0.0.0.0 0.0.0.0 200.2.99.2
+
+! 9. IGP: RIP versión 2. Solo la red 192.168.2.0 (el serial y Loopback1 no entran)
+router rip
+ version 2
+ no auto-summary
+ network 192.168.2.0
+ default-information originate
+exit
+
+! 10. EGP: eBGP AS 2
+router bgp 2
+ bgp router-id 2.2.2.2
+ bgp log-neighbor-changes
+ neighbor 200.2.99.2 remote-as 99
+ network 198.51.100.8 mask 255.255.255.248
+exit
+
+end
+write memory

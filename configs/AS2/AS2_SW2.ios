@@ -1,0 +1,57 @@
+! =====================================================================
+! AS2 - SWITCH SW2 (Cisco Catalyst 2960-24TT)  ** EQUIPO NUEVO **
+! Rol: Segmentación VLAN del lado de R3 (Req. 1.c)
+!   - VLAN 20: hosts 172.16.0.0/24 (AS2-PC2)
+!   - VLAN 30: servidor DHCP de AS2 (192.168.2.96/29)
+!   - Gi0/1: troncal 802.1Q hacia AS2-R3 Gi0/0 (Router-on-a-Stick)
+! =====================================================================
+enable
+configure terminal
+hostname AS2-SW2
+no ip domain-lookup
+
+vlan 10
+ name CLIENTES_10.0.0.0
+exit
+vlan 20
+ name CLIENTES_172.16.0.0
+exit
+vlan 30
+ name SERVIDOR_DHCP
+exit
+
+! 1. Puerto de acceso hacia AS2-PC2 (VLAN 20)
+interface FastEthernet0/1
+ description AS2-PC2_VLAN20
+ switchport mode access
+ switchport access vlan 20
+ spanning-tree portfast
+ no shutdown
+exit
+
+! 2. Puerto de acceso hacia el servidor AS2-DHCP (VLAN 30)
+interface FastEthernet0/2
+ description AS2-DHCP_VLAN30
+ switchport mode access
+ switchport access vlan 30
+ spanning-tree portfast
+ no shutdown
+exit
+
+! 3. Troncal 802.1Q hacia AS2-R3 Gi0/0
+interface GigabitEthernet0/1
+ description Troncal_hacia_AS2-R3_Gi0/0
+ switchport mode trunk
+ switchport trunk allowed vlan 20,30
+ no shutdown
+exit
+
+! 4. Puertos libres para más hosts de la VLAN 20
+interface range FastEthernet0/3 - 24
+ switchport mode access
+ switchport access vlan 20
+ spanning-tree portfast
+exit
+
+end
+write memory

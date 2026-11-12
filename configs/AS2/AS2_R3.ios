@@ -1,0 +1,66 @@
+! =====================================================================
+! AS2 - ROUTER R3 (Cisco 2911, sin módulos adicionales)
+! Rol: Gateway de 172.16.0.0/24 (VLAN 20) y de la red del servidor DHCP
+!      192.168.2.96/29 (VLAN 30) mediante Router-on-a-Stick + DHCP Relay
+!      + RIPv2
+! (Misma justificación de hardware que AS1-R3: el 2911 no tiene Gi0/3.)
+! =====================================================================
+enable
+configure terminal
+hostname AS2-R3
+no ip domain-lookup
+
+! 1. Loopback de identificación
+interface Loopback0
+ description Loopback_AS2_R3
+ ip address 192.168.2.203 255.255.255.255
+exit
+
+! 2. Interfaz física troncal hacia AS2-SW2 (Gi0/1)
+interface GigabitEthernet0/0
+ description Troncal_802.1Q_hacia_AS2-SW2_Gi0/1
+ no ip address
+ no shutdown
+exit
+
+! 2a. Subinterfaz VLAN 20 - Red de clientes 172.16.0.0/24 + DHCP Relay
+interface GigabitEthernet0/0.20
+ description VLAN20_Clientes_172.16.0.0/24
+ encapsulation dot1Q 20
+ ip address 172.16.0.1 255.255.255.0
+ ip helper-address 192.168.2.100
+exit
+
+! 2b. Subinterfaz VLAN 30 - Red del servidor DHCP de AS2 (192.168.2.96/29)
+interface GigabitEthernet0/0.30
+ description VLAN30_Servidor_DHCP_192.168.2.96/29
+ encapsulation dot1Q 30
+ ip address 192.168.2.97 255.255.255.248
+exit
+
+! 3. Enlace interno hacia AS2-R1
+interface GigabitEthernet0/1
+ description Enlace_Interno_a_AS2-R1_Gi0/1
+ ip address 192.168.2.2 255.255.255.252
+ no shutdown
+exit
+
+! 4. Enlace interno hacia AS2-R4
+interface GigabitEthernet0/2
+ description Enlace_Interno_a_AS2-R4_Gi0/2
+ ip address 192.168.2.9 255.255.255.252
+ no shutdown
+exit
+
+! 5. IGP: RIP versión 2
+router rip
+ version 2
+ no auto-summary
+ passive-interface GigabitEthernet0/0.20
+ passive-interface GigabitEthernet0/0.30
+ network 172.16.0.0
+ network 192.168.2.0
+exit
+
+end
+write memory

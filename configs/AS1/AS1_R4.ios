@@ -1,0 +1,93 @@
+! =====================================================================
+! AS1 - ROUTER R4 (Cisco 2911 + módulo HWIC-2T en el slot 0)
+! Rol: Router de borde de AS1 (eBGP con AS99 + NAT/PAT + OSPF 1)
+!
+! Hardware: apagar el router en la pestaña Physical, insertar HWIC-2T en
+! el slot 0 y encenderlo. Aparecen Serial0/0/0 y Serial0/0/1.
+! El enlace con AS99-R6 es serial (WAN). El extremo DCE (clock rate) está
+! en AS99-R6.
+!
+! Solución a la superposición de direcciones:
+!   - PAT (NAT overload) de las redes internas superpuestas hacia el bloque
+!     público exclusivo de AS1: 198.51.100.0/29 (anclado en Loopback1)
+!   - eBGP (AS 1 -> AS 99) anuncia SOLO 198.51.100.0/29 (nunca 10.0.0.0/24
+!     ni 172.16.0.0/24)
+!   - Recibe por eBGP 203.0.113.0/24 (servicios de AS99) y origina una ruta
+!     por defecto en OSPF hacia los routers internos
+! =====================================================================
+enable
+configure terminal
+hostname AS1-R4
+no ip domain-lookup
+
+! 1. Loopback de identificación
+interface Loopback0
+ description Loopback_AS1_R4
+ ip address 192.168.1.204 255.255.255.255
+exit
+
+! 2. Loopback1: bloque público único de AS1 (lo hace "conectado" para BGP)
+interface Loopback1
+ description Bloque_Publico_AS1_198.51.100.0/29_para_NAT_y_BGP
+ ip address 198.51.100.1 255.255.255.248
+exit
+
+! 3. Enlace eBGP serial hacia AS99-R6 Se0/0/0 (R6 es DCE)
+interface Serial0/0/0
+ description Enlace_eBGP_hacia_AS99-R6_Se0/0/0
+ ip address 200.1.99.1 255.255.255.252
+ ip nat outside
+ no shutdown
+exit
+
+! 4. Gi0/0 queda libre
+interface GigabitEthernet0/0
+ description Libre
+ shutdown
+exit
+
+! 5. Enlace interno hacia AS1-R2
+interface GigabitEthernet0/1
+ description Enlace_Interno_a_AS1-R2_Gi0/1
+ ip address 192.168.1.14 255.255.255.252
+ ip nat inside
+ no shutdown
+exit
+
+! 6. Enlace interno hacia AS1-R3
+interface GigabitEthernet0/2
+ description Enlace_Interno_a_AS1-R3_Gi0/2
+ ip address 192.168.1.10 255.255.255.252
+ ip nat inside
+ no shutdown
+exit
+
+! 7. NAT/PAT: todo lo interno de AS1 sale como 198.51.100.2 - .6
+access-list 1 permit 10.0.0.0 0.0.0.255
+access-list 1 permit 172.16.0.0 0.0.0.255
+access-list 1 permit 192.168.1.0 0.0.0.255
+ip nat pool POOL_PUBLICO_AS1 198.51.100.2 198.51.100.6 netmask 255.255.255.248
+ip nat inside source list 1 pool POOL_PUBLICO_AS1 overload
+
+! 8. Ruta por defecto hacia AS99 (se propaga al interior por OSPF)
+ip route 0.0.0.0 0.0.0.0 200.1.99.2
+
+! 9. IGP: OSPF Proceso 1 (Área 0). El enlace serial y Loopback1 NO entran a OSPF
+router ospf 1
+ router-id 1.1.1.4
+ network 192.168.1.8 0.0.0.3 area 0
+ network 192.168.1.12 0.0.0.3 area 0
+ network 192.168.1.204 0.0.0.0 area 0
+ default-information originate
+exit
+
+! 10. EGP: eBGP AS 1
+router bgp 1
+ bgp router-id 1.1.1.4
+ bgp log-neighbor-changes
+ neighbor 200.1.99.2 remote-as 99
+ network 198.51.100.0 mask 255.255.255.248
+exit
+
+end
+write memory

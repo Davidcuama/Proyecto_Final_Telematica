@@ -1,0 +1,50 @@
+! =====================================================================
+! AS1 - ROUTER R1 (Modelo recomendado: Cisco 2911)
+! Rol: Gateway de la red 10.0.0.0/24 + Agente DHCP Relay + OSPF Proceso 1
+! =====================================================================
+enable
+configure terminal
+hostname AS1-R1
+no ip domain-lookup
+
+! 1. Interfaz Loopback para identificación y pruebas internas
+interface Loopback0
+ description Loopback_AS1_R1
+ ip address 192.168.1.201 255.255.255.255
+exit
+
+! 2. Interfaz LAN hacia Switch SW1 (VLAN 10 - Red 10.0.0.0/24)
+!    Incluye ip helper-address (DHCP Relay) apuntando al servidor DHCP de AS1
+interface GigabitEthernet0/0
+ description LAN_VLAN10_10.0.0.0/24_con_DHCP_Relay
+ ip address 10.0.0.1 255.255.255.0
+ ip helper-address 192.168.1.100
+ no shutdown
+exit
+
+! 3. Enlace interno hacia AS1-R3
+interface GigabitEthernet0/1
+ description Enlace_Interno_a_AS1-R3_Gi0/1
+ ip address 192.168.1.1 255.255.255.252
+ no shutdown
+exit
+
+! 4. Enlace interno hacia AS1-R2
+interface GigabitEthernet0/2
+ description Enlace_Interno_a_AS1-R2_Gi0/2
+ ip address 192.168.1.5 255.255.255.252
+ no shutdown
+exit
+
+! 5. Enrutamiento Interno (IGP): OSPF Proceso 1 (Área 0)
+router ospf 1
+ router-id 1.1.1.1
+ passive-interface GigabitEthernet0/0
+ network 10.0.0.0 0.0.0.255 area 0
+ network 192.168.1.0 0.0.0.3 area 0
+ network 192.168.1.4 0.0.0.3 area 0
+ network 192.168.1.201 0.0.0.0 area 0
+exit
+
+end
+write memory

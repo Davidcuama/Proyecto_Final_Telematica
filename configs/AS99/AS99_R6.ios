@@ -1,0 +1,94 @@
+! =====================================================================
+! AS99 - ROUTER R6 (Cisco 2911 + módulo HWIC-2T en el slot 0)
+! Rol: Router de borde del proveedor (eBGP con AS1 y AS2 + OSPF 99)
+!
+! Hardware: R6 tiene 4 vecinos (AS1-R4, AS2-R2, R5, R7) y el 2911 solo trae
+! 3 puertos Gigabit. Se inserta HWIC-2T (Serial0/0/0 y Serial0/0/1) para
+! los dos enlaces WAN eBGP. R6 es el extremo DCE de ambos cables seriales
+! (por eso lleva clock rate).
+!
+! Limitación de iBGP en Packet Tracer (Req. 3.b): PT no permite levantar
+! sesiones iBGP útiles (neighbor con el mismo AS) ni next-hop-self, así que
+! R5 y R7 no pueden aprender por BGP las rutas de los clientes. Solución:
+!   1. R6 es el ÚNICO router de AS99 que habla BGP.
+!   2. R6 anuncia por eBGP el agregado 203.0.113.0/24 (anclado a Null0).
+!   3. R6 aprende por eBGP 198.51.100.0/29 (AS1) y 198.51.100.8/29 (AS2).
+!   4. R6 inyecta en OSPF 99 una ruta por defecto (ip route 0.0.0.0 0.0.0.0
+!      Null0 + default-information originate). R5 y R7 envían a R6 todo lo
+!      que no es de AS99, y R6 decide el AS de destino con su tabla BGP.
+!      Nota: el IOS de Packet Tracer rechaza la palabra "always"
+!      ("% Invalid input detected"), por eso se usa la ruta estática a Null0.
+! =====================================================================
+enable
+configure terminal
+hostname AS99-R6
+no ip domain-lookup
+
+! 1. Loopback de identificación
+interface Loopback0
+ description Loopback_AS99_R6
+ ip address 203.0.113.206 255.255.255.255
+exit
+
+! 2. Enlace eBGP serial hacia Cliente 1: AS1-R4 Se0/0/0 (R6 = DCE)
+interface Serial0/0/0
+ description Enlace_eBGP_hacia_AS1-R4_Se0/0/0
+ ip address 200.1.99.2 255.255.255.252
+ clock rate 2000000
+ no shutdown
+exit
+
+! 3. Enlace eBGP serial hacia Cliente 2: AS2-R2 Se0/0/0 (R6 = DCE)
+interface Serial0/0/1
+ description Enlace_eBGP_hacia_AS2-R2_Se0/0/0
+ ip address 200.2.99.2 255.255.255.252
+ clock rate 2000000
+ no shutdown
+exit
+
+! 4. Enlace interno hacia AS99-R5 (router del DNS)
+interface GigabitEthernet0/0
+ description Enlace_Interno_a_AS99-R5_Gi0/1
+ ip address 203.0.113.1 255.255.255.252
+ no shutdown
+exit
+
+! 5. Enlace interno hacia AS99-R7 (router del WEB)
+interface GigabitEthernet0/1
+ description Enlace_Interno_a_AS99-R7_Gi0/1
+ ip address 203.0.113.5 255.255.255.252
+ no shutdown
+exit
+
+! 6. Ruta de descarte para el agregado de AS99 (permite anunciarlo en BGP)
+ip route 203.0.113.0 255.255.255.0 Null0
+
+! 6b. Ruta por defecto de descarte. Packet Tracer rechaza "default-information
+!     originate always" (% Invalid input) y sin "always" OSPF solo anuncia el
+!     0.0.0.0/0 si el router tiene una ruta por defecto en su tabla
+!     (verificado: sin ella R5 y R7 quedaban con "Gateway of last resort is
+!     not set"). Con esta ruta R6 sí la anuncia.
+!     No afecta el tráfico de los clientes: las rutas BGP 198.51.100.0/29 y
+!     198.51.100.8/29 son más específicas; solo se descarta lo desconocido.
+ip route 0.0.0.0 0.0.0.0 Null0
+
+! 7. IGP del proveedor: OSPF 99 (Área 0). Los seriales NO entran a OSPF
+router ospf 99
+ router-id 99.99.99.6
+ network 203.0.113.0 0.0.0.3 area 0
+ network 203.0.113.4 0.0.0.3 area 0
+ network 203.0.113.206 0.0.0.0 area 0
+ default-information originate
+exit
+
+! 8. EGP: eBGP AS 99
+router bgp 99
+ bgp router-id 99.99.99.6
+ bgp log-neighbor-changes
+ neighbor 200.1.99.1 remote-as 1
+ neighbor 200.2.99.1 remote-as 2
+ network 203.0.113.0 mask 255.255.255.0
+exit
+
+end
+write memory

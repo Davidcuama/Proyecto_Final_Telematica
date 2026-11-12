@@ -1,0 +1,39 @@
+! =====================================================================
+! AS1 - ROUTER R2 (Modelo recomendado: Cisco 2911)
+! Rol: Router Interno de Respaldo / Core Inferior Izquierdo + OSPF Proceso 1
+! =====================================================================
+enable
+configure terminal
+hostname AS1-R2
+no ip domain-lookup
+
+! 1. Interfaz Loopback para identificación y pruebas internas
+interface Loopback0
+ description Loopback_AS1_R2
+ ip address 192.168.1.202 255.255.255.255
+exit
+
+! 2. Enlace interno hacia AS1-R4
+interface GigabitEthernet0/1
+ description Enlace_Interno_a_AS1-R4_Gi0/1
+ ip address 192.168.1.13 255.255.255.252
+ no shutdown
+exit
+
+! 3. Enlace interno hacia AS1-R1
+interface GigabitEthernet0/2
+ description Enlace_Interno_a_AS1-R1_Gi0/2
+ ip address 192.168.1.6 255.255.255.252
+ no shutdown
+exit
+
+! 4. Enrutamiento Interno (IGP): OSPF Proceso 1 (Área 0)
+router ospf 1
+ router-id 1.1.1.2
+ network 192.168.1.4 0.0.0.3 area 0
+ network 192.168.1.12 0.0.0.3 area 0
+ network 192.168.1.202 0.0.0.0 area 0
+exit
+
+end
+write memory

@@ -1,0 +1,38 @@
+! =====================================================================
+! AS2 - ROUTER R4 (Modelo recomendado: Cisco 2911)
+! Rol: Router Interno de Respaldo / Core Inferior Derecho de AS2 + RIPv2
+! =====================================================================
+enable
+configure terminal
+hostname AS2-R4
+no ip domain-lookup
+
+! 1. Interfaz Loopback para identificación y pruebas internas
+interface Loopback0
+ description Loopback_AS2_R4
+ ip address 192.168.2.204 255.255.255.255
+exit
+
+! 2. Enlace interno hacia AS2-R2
+interface GigabitEthernet0/1
+ description Enlace_Interno_a_AS2-R2_Gi0/1
+ ip address 192.168.2.14 255.255.255.252
+ no shutdown
+exit
+
+! 3. Enlace interno hacia AS2-R3
+interface GigabitEthernet0/2
+ description Enlace_Interno_a_AS2-R3_Gi0/2
+ ip address 192.168.2.10 255.255.255.252
+ no shutdown
+exit
+
+! 4. Enrutamiento Interno (IGP): RIP versión 2
+router rip
+ version 2
+ no auto-summary
+ network 192.168.2.0
+exit
+
+end
+write memory
